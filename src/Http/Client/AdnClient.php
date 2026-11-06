@@ -315,14 +315,12 @@ class AdnClient implements AdnDanfseInterface
     }
 
     /**
-     * @return mixed
-     *
      * @throws NfseApiException
      */
-    private function handleException(\GuzzleHttp\Exception\RequestException|\Exception $e)
+    private function handleException(\GuzzleHttp\Exception\RequestException|\Exception $e): never
     {
         $responseBody = '';
-        if ($e->hasResponse()) {
+        if ($e instanceof \GuzzleHttp\Exception\RequestException && $e->hasResponse()) {
             $responseBody = $e->getResponse()->getBody()->getContents();
         }
 

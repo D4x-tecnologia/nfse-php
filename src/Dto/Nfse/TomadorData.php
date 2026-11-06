@@ -5,8 +5,8 @@ namespace Nfse\Dto\Nfse;
 use Nfse\Dto\Dto;
 use Nfse\Enums\MotivoNaoNif;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Dto\Attributes\CastWith;
+use Nfse\Dto\Attributes\MapFrom;
 
 class TomadorData extends Dto
 {

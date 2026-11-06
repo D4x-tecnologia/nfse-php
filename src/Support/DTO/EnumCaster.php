@@ -2,7 +2,7 @@
 
 namespace Nfse\Support\DTO;
 
-use Spatie\DataTransferObject\Caster;
+use Nfse\Dto\Contracts\Caster;
 
 class EnumCaster implements Caster
 {

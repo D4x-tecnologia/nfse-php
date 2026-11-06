@@ -8,8 +8,8 @@ use Nfse\Enums\TipoEnteGovernamental;
 use Nfse\Enums\TipoOperacaoRtc;
 use Nfse\Support\DTO\ArrayCaster;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Dto\Attributes\CastWith;
+use Nfse\Dto\Attributes\MapFrom;
 
 class IbscbsData extends Dto
 {

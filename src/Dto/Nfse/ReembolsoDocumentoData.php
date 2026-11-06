@@ -6,8 +6,8 @@ use Nfse\Dto\Dto;
 use Nfse\Enums\TipoChaveDFe;
 use Nfse\Enums\TipoReembolsoRepasseRessarcimento;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Dto\Attributes\CastWith;
+use Nfse\Dto\Attributes\MapFrom;
 
 class ReembolsoDocumentoData extends Dto
 {

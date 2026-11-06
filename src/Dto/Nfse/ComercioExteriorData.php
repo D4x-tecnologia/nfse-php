@@ -7,8 +7,8 @@ use Nfse\Enums\ModoPrestacao;
 use Nfse\Enums\MovimentacaoTemporariaBens;
 use Nfse\Enums\TipoPessoa;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Dto\Attributes\CastWith;
+use Nfse\Dto\Attributes\MapFrom;
 
 class ComercioExteriorData extends Dto
 {

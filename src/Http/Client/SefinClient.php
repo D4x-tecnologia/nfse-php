@@ -224,11 +224,9 @@ class SefinClient implements SefinNacionalInterface
     }
 
     /**
-     * @return mixed
-     *
      * @throws NfseApiException
      */
-    private function handleException(\Exception|GuzzleException $e)
+    private function handleException(\Exception|GuzzleException $e): never
     {
         $errorBody = '';
         if ($e instanceof \GuzzleHttp\Exception\RequestException && $e->getResponse()) {

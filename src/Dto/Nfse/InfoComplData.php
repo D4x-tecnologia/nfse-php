@@ -3,7 +3,7 @@
 namespace Nfse\Dto\Nfse;
 
 use Nfse\Dto\Dto;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Dto\Attributes\MapFrom;
 
 class InfoComplData extends Dto
 {

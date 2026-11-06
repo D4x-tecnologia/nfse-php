@@ -2,95 +2,190 @@
 
 namespace Nfse\Dto;
 
+use Nfse\Dto\Attributes\CastWith;
+use Nfse\Dto\Attributes\MapFrom;
 use ReflectionClass;
+use ReflectionNamedType;
 use ReflectionProperty;
-use Spatie\DataTransferObject\Attributes\MapFrom;
-use Spatie\DataTransferObject\DataTransferObject;
 
-abstract class Dto extends DataTransferObject
+/** @phpstan-consistent-constructor */
+abstract class Dto
 {
     public function __construct(...$args)
     {
-        // Se o primeiro argumento é um array, usamos ele como input (estilo antigo/Spatie)
-        if (isset($args[0]) && is_array($args[0])) {
-            $input = $args[0];
-        } else {
-            // Caso contrário, assumimos que os argumentos passados (named ou não) são o input
-            $input = $args;
+        $input = isset($args[0]) && is_array($args[0]) ? $args[0] : $args;
+
+        foreach ($this->publicProperties() as $property) {
+            $name = $property->getName();
+            $map = $property->getAttributes(MapFrom::class);
+            $path = $map === [] ? $name : $map[0]->newInstance()->name;
+
+            if ($this->hasPath($input, $path)) {
+                $value = $this->getPath($input, $path);
+            } elseif (array_key_exists($name, $input)) {
+                $value = $input[$name];
+            } else {
+                continue;
+            }
+
+            $property->setValue($this, $this->castProperty($property, $value));
         }
-
-        // Normaliza o input (permite usar nomes de propriedades originais)
-        $input = $this->normalizeInput($input);
-
-        // Chama o construtor pai passando o array normalizado como ÚNICO argumento
-        // Isso evita erros com chaves inválidas para named arguments (ex: '@attributes')
-        // e garante que o DataTransferObject trate como um array de propriedades
-        parent::__construct($input);
     }
 
-    protected function normalizeInput(array $input): array
+    /** @return static[] */
+    public static function arrayOf(array $items): array
     {
-        $class = new ReflectionClass($this);
+        return array_map(static fn ($item) => $item instanceof static ? $item : new static($item), $items);
+    }
 
-        foreach ($class->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
-            $propName = $property->getName();
-
-            // Se o input tem a chave com o nome da propriedade
-            if (array_key_exists($propName, $input)) {
-                $attributes = $property->getAttributes(MapFrom::class);
-
-                if (count($attributes) > 0) {
-                    $mapFrom = $attributes[0]->newInstance();
-                    $mappedName = $mapFrom->name;
-
-                    // Se o mappedName usa dot notation, precisamos expandir
-                    if (str_contains($mappedName, '.')) {
-                        // Verifica se já existe valor no caminho mapeado
-                        if (! $this->hasDotNotation($input, $mappedName)) {
-                            $this->setDotNotation($input, $mappedName, $input[$propName]);
-                        }
-                    } else {
-                        // Se não existe a chave mapeada, define ela
-                        if (! array_key_exists($mappedName, $input)) {
-                            $input[$mappedName] = $input[$propName];
-                        }
-                    }
-                }
+    /** @return array<string, mixed> */
+    public function all(): array
+    {
+        $values = [];
+        foreach ($this->publicProperties() as $property) {
+            if ($property->isInitialized($this)) {
+                $values[$property->getName()] = $property->getValue($this);
             }
         }
 
-        return $input;
+        return $values;
     }
 
-    protected function hasDotNotation(array $array, string $key): bool
+    public function only(string ...$keys): static
     {
-        $keys = explode('.', $key);
-        $current = $array;
+        $selected = array_flip($keys);
+        $copy = new static(array_intersect_key($this->all(), $selected));
 
-        foreach ($keys as $k) {
-            if (! is_array($current) || ! array_key_exists($k, $current)) {
+        foreach ($copy->publicProperties() as $property) {
+            if (! isset($selected[$property->getName()])) {
+                unset($copy->{$property->getName()});
+            }
+        }
+
+        return $copy;
+    }
+
+    public function except(string ...$keys): static
+    {
+        $excluded = array_flip($keys);
+        $copy = new static(array_diff_key($this->all(), $excluded));
+
+        foreach ($copy->publicProperties() as $property) {
+            if (isset($excluded[$property->getName()])) {
+                unset($copy->{$property->getName()});
+            }
+        }
+
+        return $copy;
+    }
+
+    public function clone(...$args): static
+    {
+        $overrides = isset($args[0]) && is_array($args[0]) ? $args[0] : $args;
+
+        return new static(array_replace($this->all(), $overrides));
+    }
+
+    /** @return array<string, mixed> */
+    public function toArray(): array
+    {
+        $values = [];
+        foreach ($this->all() as $name => $value) {
+            $values[$name] = $this->serializeValue($value);
+        }
+
+        return $values;
+    }
+
+    /** @return ReflectionProperty[] */
+    private function publicProperties(): array
+    {
+        return (new ReflectionClass($this))->getProperties(ReflectionProperty::IS_PUBLIC);
+    }
+
+    private function castProperty(ReflectionProperty $property, mixed $value): mixed
+    {
+        $castAttributes = $property->getAttributes(CastWith::class);
+        if ($castAttributes !== []) {
+            /** @var CastWith $attribute */
+            $attribute = $castAttributes[0]->newInstance();
+            $casterClass = $attribute->caster;
+            $caster = new $casterClass($this->propertyTypes($property), ...$attribute->arguments);
+
+            return $caster->cast($value);
+        }
+
+        if ($value === null) {
+            return null;
+        }
+
+        $type = $property->getType();
+        if (! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
+            return $value;
+        }
+
+        $class = $type->getName();
+        if (is_subclass_of($class, self::class) && is_array($value)) {
+            return new $class($value);
+        }
+
+        return $value;
+    }
+
+    /** @return string[] */
+    private function propertyTypes(ReflectionProperty $property): array
+    {
+        $type = $property->getType();
+        if ($type instanceof ReflectionNamedType) {
+            return [$type->getName()];
+        }
+
+        return [];
+    }
+
+    private function serializeValue(mixed $value): mixed
+    {
+        if ($value instanceof self) {
+            return $value->toArray();
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = $this->serializeValue($item);
+            }
+        }
+
+        return $value;
+    }
+
+    private function hasPath(array $input, string $path): bool
+    {
+        if (array_key_exists($path, $input)) {
+            return true;
+        }
+
+        $value = $input;
+        foreach (explode('.', $path) as $segment) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
                 return false;
             }
-            $current = $current[$k];
+            $value = $value[$segment];
         }
 
         return true;
     }
 
-    protected function setDotNotation(array &$array, string $key, mixed $value): void
+    private function getPath(array $input, string $path): mixed
     {
-        $keys = explode('.', $key);
-        $current = &$array;
-
-        foreach ($keys as $i => $k) {
-            if ($i === count($keys) - 1) {
-                $current[$k] = $value;
-            } else {
-                if (! isset($current[$k]) || ! is_array($current[$k])) {
-                    $current[$k] = [];
-                }
-                $current = &$current[$k];
-            }
+        if (array_key_exists($path, $input)) {
+            return $input[$path];
         }
+
+        $value = $input;
+        foreach (explode('.', $path) as $segment) {
+            $value = $value[$segment];
+        }
+
+        return $value;
     }
 }
